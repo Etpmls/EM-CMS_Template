@@ -1,0 +1,79 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - name: Use Node
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12'
+
+      - name: Git clone
+        run: git clone https://github.com/Etpmls/EM-Auth_Template.git ./tpl
+
+      - name: Process original files
+        run: |
+          cp -r src ./tpl
+          cp -r ./tpl/src/EM-CMS/replace/* ./tpl
+
+      - name: Build normal
+        run: |
+          cd ./tpl
+          npm install
+          npm install vue-recaptcha-v3@^1.9.0
+          npm install --save @tinymce/tinymce-vue@^3
+          npm install tinymce
+          npm run build:prod
+
+      - name: Compressed file
+        run: |
+          cd ./tpl
+          zip -r dist.zip dist
+          mv dist.zip ../dist.zip
+
+      - name: Compressed source
+        run: |
+          cd ./tpl
+          rm -r node_modules .github dist .git
+          zip -r source.zip .
+          mv source.zip ../source.zip
+
+      - name: Create Release
+        id: create_release
+        uses: monkeyWie/create-release@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload dist.zip
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./dist.zip
+          asset_name: dist-${{ steps.create_release.outputs.tag }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload source.zip
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./source.zip
+          asset_name: source-${{ steps.create_release.outputs.tag }}.zip
+          asset_content_type: application/zip
